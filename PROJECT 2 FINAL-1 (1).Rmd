@@ -1,0 +1,223 @@
+---
+title: "Project 2"
+author: "Arthur Esenaliev"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#Make sure to install these packages
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(stringr)
+library(kableExtra)
+```
+
+# World Happiness Report
+
+## Introduction
+> The World Happiness Report surveys happiness across the world. Using a poll from the Gallup World Poll, evaluation questions were asked to participants. 6 factors were evaluated in the poll, including: economic production (GDP), social support, life expectancy, freedom, absence of corruption, and generosity. I retrieved this data set from kaggle, linked [here](https://www.kaggle.com/datasets/unsdsn/world-happiness/). I picked this data set because I wanted to see the happiness levels in many countries around the world. I will be investigating how economic and social factors influence happiness. 
+
+<center>
+![World Happiness](happy.jpg)
+```{r echo = FALSE}
+#To ensure proper reproducibility, download this image and name it "happy" inside your working directory
+#https://miro.medium.com/v2/resize:fit:828/format:webp/1*RWR4s5t5h_ve0D4fy5-Z9w.jpeg
+```
+<center>
+
+## Data Preparation
+> I specifically downloaded the 2015 and 2019 data report of the World Happiness Report from the kaggle link. I then renamed the variables to something clearer to work with. Instead of using periods (.), I changed the variables to use underscores (_), since I believe they are easier to spot and see. I also changed the variable names to something shorter and not as extraneous as before. Some challenges that I had while preparing the data was that I put the new variable name out of order with the old variable name so I kept getting error messages. There were no unknown or NA values when analyzing the 2015 dataset (which is the dataset used for graphs), and the total number of observations is 158. When merging the two datasets, there are different amounts of countries, some being included in 2015 observations and left out of 2019 and vise versa. The NA's in the year comparison are set to 0 in the 2019 data and is not used for graphs. There is no NA values in 2015. 
+
+```{r echo = FALSE}
+#Getting the data set into a dataframe
+#To ensure reproducibility, make sure that the data set is downloaded and the working directory is the downloads
+happy_2015 <- read.csv("2015.csv")
+happy_2019 <- read.csv("2019.csv")
+```
+
+```{r echo = FALSE}
+#Setting the data set as a tibble
+happy_tib <- as_tibble(happy_2015)
+
+# Renaming the variables to something easier to work with
+happy_tib <- rename(happy_tib, country = Country, region = Region, rank = Happiness.Rank, score = Happiness.Score, GDP = Economy..GDP.per.Capita., family = Family, life_expectancy = Health..Life.Expectancy., freedom = Freedom, generosity = Generosity, corruption = Trust..Government.Corruption., dystopia_residual = Dystopia.Residual)
+
+happy_tib_19 <- as_tibble(happy_2019)
+happy_tib_19 <- rename(happy_tib_19, rank_2019 = Overall.rank, score_2019 = Score, country = Country.or.region)
+happy_tib_19 <- select(happy_tib_19, 1:3)
+```
+
+```{r echo = FALSE}
+#CHOICE ELEMENT 1 - Merge one or more datasets
+join <- left_join(happy_tib, happy_tib_19, by = "country")
+#Get rid of other variables to only the ones that are needed 
+happy_yr_comparison <- select(join, country, rank, score, rank_2019, score_2019)
+happy_yr_comparison[is.na(happy_yr_comparison)] <- 0
+```
+
+```{r echo = FALSE}
+#CHOICE ELEMENT 3 - Create at least two new variables of interest
+happy_yr_comparison <- mutate(happy_yr_comparison, change_score = happy_yr_comparison$score - happy_yr_comparison$score_2019)
+happy_yr_comparison <- mutate(happy_yr_comparison, change_rank = happy_yr_comparison$rank - happy_yr_comparison$rank_2019)
+
+#Making the comparison tibble into a nice table
+yr_comp_table <- filter(happy_yr_comparison, rank <= 10)
+yr_comp_table <- kable_minimal(kable_styling(kbl(yr_comp_table,  col.names = c("Country", "Rank", "Score", "2019 Rank", "2019 Score", "Change in score (2015-2019)", "Chane in rank (2015-2019)"))))
+add_header_above(yr_comp_table, c("Happiness Scores and Country Ranks in 2015 and 2019" = 7), font_size = "xx-large")
+```
+
+```{r echo = FALSE}
+#CHOICE ELEMENT 2 - Format or parse at least one string variable of interest.
+
+happy_tib$region <- str_extract(happy_tib$region, "Europe|Asia|America|Middle East|Africa|Australia")
+
+region_count <- table(happy_tib$region)
+lbls <- paste(names(region_count), region_count, sep = " ")
+pie(region_count, main = "Number of Countries per Region", labels = lbls)
+```
+
+## Variable Descriptions
+
+```{r echo = FALSE}
+happy_tib <- select(happy_tib, -Standard.Error, -dystopia_residual)
+```
+
+```{r echo = FALSE}
+
+#Getting the columns for a nicely formatted table
+
+#Gets names of columns
+happy_variables <- names(happy_tib)
+
+#Character vector that shows each type of variable for each column
+variable_type <- sapply(happy_tib, class)
+
+#Character vector that shows descriptions of each variables
+variable_desc <- c("The country", "The region", "Happiness rank of the country", "Happiness Score", "The GDP in the country or region (per capita) extent to contribute to happiness score", "Perceived family support extent to contribute to happiness score", "Life expectancy for a healthy person extent to contribute to happiness score", "Perceived freedom to make life choices individually extent to contribute to happiness score", "Corruption extent to contribute to happiness score", "Generosity extent to contribute to happiness score")
+
+#Putting the new columns into a tibble
+variable_table <- tibble(happy_variables, variable_type, variable_desc)
+
+#Making the nicely formatted table with kableExtra
+happy_table <- kable_minimal(kable_styling(kbl(variable_table, col.names = c(happy_variables = "Variable", variable_type = "Type", variable_desc = "Description"), full_width = FALSE)))
+add_header_above(happy_table, c("World Happiness Report" = 3), font_size = "xx-large")
+
+```
+## Univariate Analysis
+**The following graphs are created using the 2015 dataset.**
+```{r echo = FALSE}
+
+#Function to make a univariate graph
+
+uni_graph <- function(variable, var_name, color = "grey") {
+  hist(variable, main = paste("Extent to which", var_name, "contributed to happiness across countries"), col = color, xlab = var_name)
+}
+
+uni_graph(variable = happy_tib$corruption, var_name = "corruption", color = "darkred")
+```
+<br>
+The distribution of corruption across countries in the world is right skew. The mean of the distribution is `r round(mean(happy_tib$corruption), 2)`, and the standard deviation of the distribution is `r round(sd(happy_tib$corruption), 2)`. A lot of the countries have a low corruption extent.
+
+```{r echo = FALSE}
+uni_graph(variable = happy_tib$freedom, var_name = "freedom", color = "darkblue")
+```
+<br>
+The distribution of freedom is left skew. The mean of the distribution is `r round(mean(happy_tib$freedom), 2)`, and the standard deviation of the distribution is `r round(sd(happy_tib$freedom), 2)`. A lot of countries have a central to larger freedom extent.
+
+```{r echo = FALSE}
+uni_graph(variable = happy_tib$life_expectancy, var_name = "life expectancy", color = "darkgreen")
+```
+<br>
+The distribution of life expectancy is left skew. The mean of the distribution is `r round(mean(happy_tib$life_expectancy), 2)`, and the standard deviation of the distribution is `r round(sd(happy_tib$life_expectancy), 2)`. A lot of countries have a high life expectancy extent. 
+
+
+```{r echo = FALSE}
+uni_graph(variable = happy_tib$family, var_name = "family", color = "#ff580f")
+```
+<br>
+The distribution of family is left skew. The mean of the distribution is `r round(mean(happy_tib$family), 2)`, and the standard deviation of the distribution is `r round(sd(happy_tib$family), 2)`. A lot of countries have a high family extent. 
+
+
+## Bivariate Analysis
+```{r echo = FALSE}
+#CHOICE ELEMENT Function takes in two numeric variables, labels, and colors into a scatter plot
+
+bi_graph <- function(var1, var2, title = paste("Scatter plot of", xlab, "vs", ylab), color ="navy", xlab = "var1", ylab = "var2"){
+  plot(var1, var2, col = color, main = title, xlab = xlab, ylab = ylab)
+}
+#Two numeric variables of GDP and score
+bi_graph(happy_tib$GDP, happy_tib$score, xlab = "GDP", ylab = "Score")
+
+```
+<br>
+The plot above shows the relationship of GDP to happiness score. The relationship shows a positive relationship. The correlation value between the two variables is `r round(cor(happy_tib$GDP, happy_tib$score), 2)`, which means there is a positive correlation. This means that as the extent to which GDP contributes to happiness score increases, then the score likely increases.
+
+```{r echo = FALSE}
+#Two numeric variables of GDP and corruption
+bi_graph(happy_tib$GDP, happy_tib$corruption, color = "darkred", xlab = "GDP", ylab = "Corruption")
+
+```
+<br>
+The plot above shows the relationship between GDP and corruption. The relationship isn't very clear from the graph. The correlation between the two variables is `r round(cor(happy_tib$GDP, happy_tib$corruption), 2)`, which means a low positive correlation. This means a weak contribution to the extent to which GDP contributes to happiness score to the extent to which corruption contributed to happiness score.
+
+```{r echo = FALSE}
+#Two numeric variables of generosity and corruption
+bi_graph(happy_tib$generosity, happy_tib$corruption, color = "black", xlab = "Generosity", ylab = "Corruption")
+
+```
+<br>
+The plot above shows the relationship between Generosity and Corruption. The relationship isn't very clear from the graph. The correlation between the two variables is `r round(cor(happy_tib$generosity, happy_tib$corruption), 2)`, which means a lower positive correlation. This means a weak contribution for the extent to which generosity contributes to happiness score relates to the extent to which corruption contributes to happiness score. 
+
+```{r echo = FALSE}
+#Two numeric variables of life_expectancy and score
+bi_graph(happy_tib$life_expectancy, happy_tib$score, color = "darkgreen", xlab = "Life Expectancy", ylab = "Score")
+```
+<br>
+The plot above shows the relationship between life expectancy and happiness score The relationship shows positive from the graph. The correlation between the two variables is `r round(cor(happy_tib$life_expectancy, happy_tib$score), 2)`, which means a positive correlation. That means as the life expectancy for a healthy person extent to contribute to happiness score increases, the score increases.
+
+## Reproducibility 
+
+To ensure reproducibility, I made sure to leave comments. I also added coherent variable names so that people attempting to reproduce my report can understand what each function and variable do. 
+
+## Choice Elements 
+
+```{r echo = FALSE}
+#Use 5 or more in-line codes within your report.
+#Merge one or more data sets.
+#Create at least two new variables of interest.
+#Format or parse at least one string variable of interest.
+#Write and use a user-written function* with at least 2 arguments to either process the data or carry out some analysis.
+```
+
+The choice elements I decided to add to my report were: Use 5 or more in-line codes within your report, Merge one or more data sets, Create at least two new variables of interest, Format or parse at least one string variable of interest, Write and use a user-written function* with at least 2 arguments to either process the data or carry out some analysis.
+
+The merge happens in the year comparison table because I used two datasets, 2015 and 2019 world happiness index. The two variables of interest occur in the year comparison table with change in rank and change in score. Format or parse at least one string variable occurs when I change the string variable region to a more general continent back in the pie chart. Writing a user-written function with two arguments occurs in the bivariate analysis graph portion because the function takes in two numeric arguments as well as other arguments to carry out some analysis, the graphs. The in line codes are placed through the statistics of each graph. 
+
+## Conclusion
+
+I found that the greater extent to which a positive variable (such as GDP, generosity, freedom, life expectancy, and family) contributes to happiness the greater the happiness score. What the basically means is that if the extent to which GDP contributes to happiness increases (people feel that the GDP influences the happiness), the higher the happiness score. Same thing goes to life expectancy, family, and freedom. The higher life expectancy, family, and freedom quality, the higher likely the happiness score is. It is as expected. Also, from the year comparisons, it can be seen that the countries fluctuate ranking for happiness. This is as expected because political, economic, and social factors can change within a country greatly in 4 years, which can impact the happiness score. 
+
+## References
+
+**Kaggle Dataset:**
+
+Network, Sustainable Development Solutions. “World Happiness Report.” Kaggle, 27 Nov. 2019, www.kaggle.com/datasets/unsdsn/world-happiness/. 
+
+**World Happiness Report Website:**
+
+Helliwell, John F., et al. “World Happiness Report 2015.” The World Happiness Report, 23 Apr. 2015, worldhappiness.report/ed/2015/. 
+
+**Variable explanation:**
+
+“What Makes the World Happy?” What Makes the World Happpy?, apatronl.github.io/WorldHappiness/. Accessed 5 Nov. 2023.
+
+**Picture**
+
+Gabani, Denil. “What Is World Happiness Index&nbsp;?” Medium, Analytics Vidhya, 10 Jan. 2020, medium.com/analytics-vidhya/what-is-world-happiness-index-f5744490701f. 
+
